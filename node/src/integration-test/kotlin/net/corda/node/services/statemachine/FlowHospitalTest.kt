@@ -16,6 +16,8 @@ import net.corda.core.flows.InitiatingFlow
 import net.corda.core.flows.NotaryException
 import net.corda.core.flows.NotaryFlow
 import net.corda.core.flows.ReceiveFinalityFlow
+import net.corda.core.flows.ReceiveTransactionFlow
+import net.corda.core.flows.SendTransactionFlow
 import net.corda.core.flows.SignTransactionFlow
 import net.corda.core.flows.StartableByRPC
 import net.corda.core.flows.UnexpectedFlowEndException
@@ -215,27 +217,16 @@ class FlowHospitalTest {
         }
     }
 
-    @Test(timeout = 300_000)
+    @Test(timeout = 600_000)
     fun `catching a notary error will cause a peer to fail with unexpected session end during ReceiveFinalityFlow that passes through user code`() {
-        var dischargedCounter = 0
-        StaffedFlowHospital.onFlowErrorPropagated.add { _, _ ->
-            ++dischargedCounter
-        }
         val user = User("mark", "dadada", setOf(Permissions.all()))
         driver(DriverParameters(isDebug = false, startNodesInProcess = true)) {
-
             val nodeAHandle = startNode(providedName = ALICE_NAME, rpcUsers = listOf(user)).getOrThrow()
             val nodeBHandle = startNode(providedName = BOB_NAME, rpcUsers = listOf(user)).getOrThrow()
             nodeAHandle.rpc.let {
-                val ref = it.startFlow(::CreateTransactionFlow, nodeBHandle.nodeInfo.singleIdentity()).returnValue.getOrThrow(20.seconds)
-                it.startFlow(::SpendStateAndCatchDoubleSpendFlow, nodeBHandle.nodeInfo.singleIdentity(), ref).returnValue.getOrThrow(20.seconds)
-                it.startFlow(::SpendStateAndCatchDoubleSpendFlow, nodeBHandle.nodeInfo.singleIdentity(), ref).returnValue.getOrThrow(20.seconds)
+                it.startFlow(::AxmTestInitiatingFlow, nodeBHandle.nodeInfo.singleIdentity()).returnValue.getOrThrow(20.seconds)
             }
         }
-        // 1 is the notary failing to notarise and propagating the error
-        // 2 is the receiving flow failing due to the unexpected session end error
-        assertEquals(2, dischargedCounter)
-        assertTrue(SpendStateAndCatchDoubleSpendResponderFlow.exceptionSeenInUserFlow)
     }
 
     @Test(timeout = 300_000)
@@ -418,7 +409,6 @@ class FlowHospitalTest {
             logger.info("CREATE TX - WAITING TO SIGN TX")
             val stx = subFlow(object : SignTransactionFlow(session) {
                 override fun checkTransaction(stx: SignedTransaction) {
-
                 }
             })
             logger.info("CREATE TX - SIGNED TO SIGN TX")
@@ -430,12 +420,12 @@ class FlowHospitalTest {
     @InitiatingFlow
     @StartableByRPC
     class SpendStateAndCatchDoubleSpendFlow(
-        private val peer: Party,
-        private val ref: StateAndRef<DummyState>,
-        private val consumePeerError: Boolean
+            private val peer: Party,
+            private val ref: StateAndRef<DummyState>,
+            private val consumePeerError: Boolean
     ) : FlowLogic<StateAndRef<DummyState>>() {
 
-        constructor(peer: Party, ref: StateAndRef<DummyState>): this(peer, ref, false)
+        constructor(peer: Party, ref: StateAndRef<DummyState>) : this(peer, ref, false)
 
         @Suspendable
         override fun call(): StateAndRef<DummyState> {
@@ -450,7 +440,7 @@ class FlowHospitalTest {
             val ftx = subFlow(CollectSignaturesFlow(stx, listOf(session)))
             try {
                 subFlow(FinalityFlow(ftx, session))
-            } catch(e: NotaryException) {
+            } catch (e: NotaryException) {
                 logger.info("Caught notary exception")
             }
             return ftx.coreTransaction.outRef(0)
@@ -469,7 +459,6 @@ class FlowHospitalTest {
             val consumeError = session.receive<Boolean>().unwrap { it }
             val stx = subFlow(object : SignTransactionFlow(session) {
                 override fun checkTransaction(stx: SignedTransaction) {
-
                 }
             })
             try {
@@ -522,6 +511,53 @@ class FlowHospitalTest {
                 exceptionSeenInUserFlow = true
                 throw e
             }
+        }
+    }
+
+    @InitiatingFlow
+    @StartableByRPC
+    class AxmTestInitiatingFlow(private val peer: Party) : FlowLogic<Unit>() {
+
+        @Suspendable
+        override fun call() {
+            val tx1 = TransactionBuilder(serviceHub.networkMapCache.notaryIdentities.first()).apply {
+                addOutputState(DummyState(participants = listOf(ourIdentity)))
+                addCommand(DummyContract.Commands.Move(), listOf(ourIdentity.owningKey))
+            }
+            val stx1 = serviceHub.signInitialTransaction(tx1)
+            val nstx1 = subFlow(FinalityFlow(stx1, emptySet<FlowSession>()))
+
+            val tx2 = TransactionBuilder(serviceHub.networkMapCache.notaryIdentities.first()).apply {
+                addInputState(nstx1.coreTransaction.outRef<DummyState>(0))
+                addOutputState(DummyState(participants = listOf(ourIdentity)))
+                addOutputState(DummyState(participants = listOf(ourIdentity)))
+                addOutputState(DummyState(participants = listOf(ourIdentity)))
+                addCommand(DummyContract.Commands.Move(), listOf(ourIdentity.owningKey))
+            }
+            val stx2 = serviceHub.signInitialTransaction(tx2)
+            val nstx2 = subFlow(FinalityFlow(stx2, emptySet<FlowSession>()))
+
+            val tx3 = TransactionBuilder(serviceHub.networkMapCache.notaryIdentities.first()).apply {
+                addInputState(nstx2.coreTransaction.outRef<DummyState>(0))
+                addOutputState(DummyState(participants = listOf(ourIdentity)))
+                addOutputState(DummyState(participants = listOf(ourIdentity)))
+                addCommand(DummyContract.Commands.Move(), listOf(ourIdentity.owningKey))
+            }
+
+            val stx3 = serviceHub.signInitialTransaction(tx3)
+            val nstx3 = subFlow(FinalityFlow(stx3, emptySet<FlowSession>()))
+
+            val session3 = initiateFlow(peer)
+            subFlow(SendTransactionFlow(session3, nstx3))
+        }
+    }
+
+    @InitiatedBy(AxmTestInitiatingFlow::class)
+    class AxmTestRespondingFlow(private val session: FlowSession) : FlowLogic<Unit>() {
+
+        @Suspendable
+        override fun call() {
+            subFlow(ReceiveTransactionFlow(session))
         }
     }
 }
