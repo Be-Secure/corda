@@ -64,6 +64,7 @@ interface ServiceHubInternal : ServiceHubCoreInternal {
             return sort.complete()
         }
 
+        @Suppress("LongParameterList")
         fun recordTransactions(statesToRecord: StatesToRecord,
                                txs: Collection<SignedTransaction>,
                                validatedTransactions: WritableTransactionStorage,
