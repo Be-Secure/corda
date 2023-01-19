@@ -91,24 +91,33 @@ class FinalityFlowTests : WithFinality {
     fun `two phase finality flow transaction`() {
         val bobNode = createBob(platformVersion = PlatformVersionSwitches.TWO_PHASE_FINALITY)
 
-        aliceNode.startFlow(CashIssueFlow(Amount(1000L, GBP), OpaqueBytes.of(1), notary)).resultFuture.getOrThrow()
+        val stx = aliceNode.startFlow(CashIssueFlow(Amount(1000L, GBP), OpaqueBytes.of(1), notary)).resultFuture.getOrThrow().stx
         aliceNode.startFlowAndRunNetwork(CashPaymentFlow(Amount(100, GBP), bobNode.info.singleIdentity())).resultFuture.getOrThrow()
+
+        assertThat(aliceNode.services.validatedTransactions.getTransaction(stx.id)).isNotNull
+        assertThat(bobNode.services.validatedTransactions.getTransaction(stx.id)).isNotNull
     }
 
     @Test(timeout=300_000)
     fun `two phase finality flow initiator to pre-2PF peer`() {
         val bobNode = createBob(platformVersion = PlatformVersionSwitches.TWO_PHASE_FINALITY - 1)
-        aliceNode.startFlow(CashIssueFlow(Amount(1000L, GBP), OpaqueBytes.of(1), notary)).resultFuture.getOrThrow()
+
+        val stx = aliceNode.startFlow(CashIssueFlow(Amount(1000L, GBP), OpaqueBytes.of(1), notary)).resultFuture.getOrThrow().stx
         aliceNode.startFlowAndRunNetwork(CashPaymentFlow(Amount(100, GBP), bobNode.info.singleIdentity())).resultFuture.getOrThrow()
 
+        assertThat(aliceNode.services.validatedTransactions.getTransaction(stx.id)).isNotNull
+        assertThat(bobNode.services.validatedTransactions.getTransaction(stx.id)).isNotNull
     }
 
     @Test(timeout=300_000)
     fun `pre-2PF initiator to two phase finality flow peer`() {
         val bobNode = createBob(platformVersion = PlatformVersionSwitches.TWO_PHASE_FINALITY - 1)
-        bobNode.startFlow(CashIssueFlow(Amount(1000L, GBP), OpaqueBytes.of(1), notary)).resultFuture.getOrThrow()
+
+        val stx = bobNode.startFlow(CashIssueFlow(Amount(1000L, GBP), OpaqueBytes.of(1), notary)).resultFuture.getOrThrow().stx
         bobNode.startFlowAndRunNetwork(CashPaymentFlow(Amount(100, GBP), aliceNode.info.singleIdentity())).resultFuture.getOrThrow()
 
+        assertThat(aliceNode.services.validatedTransactions.getTransaction(stx.id)).isNotNull
+        assertThat(bobNode.services.validatedTransactions.getTransaction(stx.id)).isNotNull
     }
 
     private fun createBob(cordapps: List<TestCordappInternal> = emptyList(), platformVersion: Int = PLATFORM_VERSION): TestStartedNode {
