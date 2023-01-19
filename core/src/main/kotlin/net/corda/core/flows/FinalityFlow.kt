@@ -235,11 +235,15 @@ class FinalityFlow private constructor(val transaction: SignedTransaction,
     }
 
     @Suspendable
-    private fun broadcastSignaturesAndFinalize(sessions: Collection<FlowSession>, notarisedSigs: List<TransactionSignature>) {
-        sessions.forEach { session ->
+    private fun broadcastSignaturesAndFinalize(sessions: Collection<FlowSession>, notarySignatures: List<TransactionSignature>) {
+        sessions.forEachIndexed { i, session ->
             try {
                 logger.info("Sending notarised signatures.")
-                session.send(notarisedSigs)
+                session.send(notarySignatures)
+                if (i == 0) {
+                    serviceHub.finalizeTransactionWithExtraSignatures(statesToRecord, listOf(transaction + notarySignatures), notarySignatures)
+                    logger.info("Finalised transaction locally.")
+                }
                 // remote will finalise txn with notary signatures
                 session.receive<Unit>()
                 logger.info("Party ${session.counterparty} received notary signature(s).")
@@ -317,10 +321,8 @@ class FinalityFlow private constructor(val transaction: SignedTransaction,
             return if (needsNotarySignature(transaction)) {
                 progressTracker.currentStep = NOTARISING
                 val notarySignatures = subFlow(NotaryFlow.Client(transaction, skipVerification = true))
-                val notarisedTxn = transaction + notarySignatures
-                serviceHub.finalizeTransactionWithExtraSignatures(statesToRecord, listOf(notarisedTxn), notarySignatures)
-                logger.info("Finalised transaction locally.")
-                notarisedTxn
+                logger.info("Transaction notarised.")
+                transaction + notarySignatures
             } else {
                 logger.info("No need to notarise this transaction. Recording locally.")
                 recordTransactionLocally(transaction)
