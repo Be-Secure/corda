@@ -236,6 +236,10 @@ class FinalityFlow private constructor(val transaction: SignedTransaction,
 
     @Suspendable
     private fun broadcastSignaturesAndFinalize(sessions: Collection<FlowSession>, notarySignatures: List<TransactionSignature>) {
+        if (sessions.isEmpty()) {
+            serviceHub.finalizeTransactionWithExtraSignatures(statesToRecord, listOf(transaction + notarySignatures), notarySignatures)
+            logger.info("Finalised transaction locally.")
+        }
         sessions.forEachIndexed { i, session ->
             try {
                 logger.info("Sending notarised signatures.")
