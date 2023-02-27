@@ -17,9 +17,11 @@ import net.corda.core.crypto.SignatureMetadata
 import net.corda.core.crypto.TransactionSignature
 import net.corda.core.flows.FlowLogic
 import net.corda.core.flows.FlowSession
+import net.corda.core.flows.FlowTransactionMetadata
 import net.corda.core.flows.InitiatedBy
 import net.corda.core.flows.InitiatingFlow
 import net.corda.core.flows.StateMachineRunId
+import net.corda.core.flows.TransactionStatus
 import net.corda.core.identity.AbstractParty
 import net.corda.core.identity.AnonymousParty
 import net.corda.core.identity.CordaX500Name
@@ -52,7 +54,6 @@ import net.corda.node.services.api.CheckpointStorage
 import net.corda.node.services.api.WritableTransactionStorage
 import net.corda.node.services.persistence.DBTransactionStorage
 import net.corda.node.services.statemachine.Checkpoint
-import net.corda.core.flows.FlowTransactionMetadata
 import net.corda.nodeapi.internal.persistence.CordaPersistence
 import net.corda.testing.core.ALICE_NAME
 import net.corda.testing.core.BOB_NAME
@@ -171,7 +172,7 @@ class TwoPartyTradeFlowTests(private val anonymous: Boolean) {
 
             // TODO: Verify that the result was inserted into the transaction database.
             // assertEquals(bobResult.get(), aliceNode.storage.validatedTransactions[aliceResult.get().id])
-            assertEquals(aliceResult.getOrThrow(), bobStateMachine.getOrThrow().resultFuture.getOrThrow())
+            assertEquals(aliceResult.getOrThrow().id, (bobStateMachine.getOrThrow().resultFuture.getOrThrow() as SignedTransaction).id)
 
             aliceNode.dispose()
             bobNode.dispose()
@@ -317,7 +318,7 @@ class TwoPartyTradeFlowTests(private val anonymous: Boolean) {
             mockNet.runNetwork()
 
             // Bob is now finished and has the same transaction as Alice.
-            assertThat(bobFuture.getOrThrow()).isEqualTo(aliceFuture.getOrThrow())
+            assertThat((bobFuture.getOrThrow() as SignedTransaction).id).isEqualTo((aliceFuture.getOrThrow().id))
 
             assertThat(bobNode.smm.findStateMachines(Buyer::class.java)).isEmpty()
             bobNode.database.transaction {
@@ -802,6 +803,7 @@ class TwoPartyTradeFlowTests(private val anonymous: Boolean) {
 
         override fun addUnnotarisedTransaction(transaction: SignedTransaction, metadata: FlowTransactionMetadata?): Boolean {
             database.transaction {
+                records.add(TxRecord.Add(transaction))
                 delegate.addUnverifiedTransaction(transaction)
             }
             return true
@@ -827,7 +829,7 @@ class TwoPartyTradeFlowTests(private val anonymous: Boolean) {
             }
         }
 
-        override fun getTransactionInternal(id: SecureHash): Pair<SignedTransaction, Boolean>? {
+        override fun getTransactionInternal(id: SecureHash): Pair<SignedTransaction, TransactionStatus>? {
             return database.transaction {
                 delegate.getTransactionInternal(id)
             }
