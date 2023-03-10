@@ -57,7 +57,7 @@ sealed class FlowInitiator : Principal {
             val origin: InvocationOrigin
             when (this) {
                 is FlowInitiator.RPC -> {
-                    actor = Actor(Actor.Id(this.username), AuthServiceId("UNKNOWN"), unknownName)
+                    actor = Actor.create(Actor.Id(this.username), AuthServiceId("UNKNOWN"), unknownName)
                     origin = InvocationOrigin.RPC(actor)
                 }
                 is FlowInitiator.Peer -> origin = InvocationOrigin.Peer(this.party.name)

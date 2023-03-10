@@ -1,10 +1,13 @@
 package net.corda.core.context
 
+import net.corda.core.CordaInternal
 import net.corda.core.DeleteForDJVM
 import net.corda.core.KeepForDJVM
 import net.corda.core.contracts.ScheduledStateRef
 import net.corda.core.identity.CordaX500Name
 import net.corda.core.internal.telemetry.SerializedTelemetry
+import net.corda.core.internal.utilities.Internable
+import net.corda.core.internal.utilities.PrivateInterner
 import net.corda.core.serialization.CordaSerializable
 import java.security.Principal
 
@@ -165,9 +168,14 @@ data class InvocationContext(
 @CordaSerializable
 data class Actor(val id: Id, val serviceId: AuthServiceId, val owningLegalIdentity: CordaX500Name) {
 
-    companion object {
+    companion object : Internable<Actor> {
         @JvmStatic
-        fun service(serviceClassName: String, owningLegalIdentity: CordaX500Name): Actor = Actor(Id(serviceClassName), AuthServiceId("SERVICE"), owningLegalIdentity)
+        fun service(serviceClassName: String, owningLegalIdentity: CordaX500Name): Actor = create(Id(serviceClassName), AuthServiceId("SERVICE"), owningLegalIdentity)
+
+        @CordaInternal
+        override val interner = PrivateInterner<Actor>()
+
+        fun create(id: Id, serviceId: AuthServiceId, owningLegalIdentity: CordaX500Name) = interner.intern(Actor(id, serviceId, owningLegalIdentity))
     }
 
     /**

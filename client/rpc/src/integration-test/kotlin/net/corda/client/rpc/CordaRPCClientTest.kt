@@ -54,7 +54,7 @@ import org.junit.Test
 import rx.subjects.PublishSubject
 import java.net.URLClassLoader
 import java.nio.file.Paths
-import java.util.*
+import java.util.Currency
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
@@ -215,7 +215,7 @@ class CordaRPCClientTest : NodeBasedTest(FINANCE_CORDAPPS, notaries = listOf(DUM
     @Test(timeout=300_000)
 	fun `flow initiator via RPC`() {
         val externalTrace = Trace.newInstance()
-        val impersonatedActor = Actor(Actor.Id("Mark Dadada"), AuthServiceId("Test"), owningLegalIdentity = BOB_NAME)
+        val impersonatedActor = Actor.create(Actor.Id("Mark Dadada"), AuthServiceId("Test"), owningLegalIdentity = BOB_NAME)
         login(rpcUser.username, rpcUser.password, externalTrace, impersonatedActor)
         val proxy = connection!!.proxy
 

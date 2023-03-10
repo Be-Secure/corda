@@ -22,7 +22,7 @@ import org.apache.activemq.artemis.api.core.management.ManagementHelper
 import org.apache.activemq.artemis.reader.MessageUtil
 import rx.Notification
 import java.time.Instant
-import java.util.*
+import java.util.ArrayList
 
 // The RPC protocol:
 //
@@ -325,7 +325,7 @@ fun ClientMessage.impersonatedActor(): Actor? {
         if (impersonatedStoreId == null || impersonatingOwningLegalIdentity == null) {
             throw IllegalStateException("Cannot extract impersonated actor from client message.")
         }
-        Actor(Actor.Id(it), AuthServiceId(impersonatedStoreId), CordaX500Name.parse(impersonatingOwningLegalIdentity))
+        Actor.create(Actor.Id(it), AuthServiceId(impersonatedStoreId), CordaX500Name.parse(impersonatingOwningLegalIdentity))
     }
 }
 

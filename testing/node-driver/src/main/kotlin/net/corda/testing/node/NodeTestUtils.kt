@@ -11,7 +11,13 @@ import net.corda.core.node.ServiceHub
 import net.corda.core.transactions.TransactionBuilder
 import net.corda.testing.common.internal.addNotary
 import net.corda.testing.core.TestIdentity
-import net.corda.testing.dsl.*
+import net.corda.testing.dsl.EnforceVerifyOrFail
+import net.corda.testing.dsl.LedgerDSL
+import net.corda.testing.dsl.LedgerDSLInterpreter
+import net.corda.testing.dsl.TestLedgerDSLInterpreter
+import net.corda.testing.dsl.TestTransactionDSLInterpreter
+import net.corda.testing.dsl.TransactionDSL
+import net.corda.testing.dsl.TransactionDSLInterpreter
 import net.corda.testing.internal.withTestSerializationEnvIfNotSet
 import net.corda.testing.node.internal.MockNetworkParametersStorage
 
@@ -55,7 +61,7 @@ fun ServiceHub.transaction(
 }
 
 /** Creates a new [Actor] for use in testing with the given [owningLegalIdentity]. */
-fun testActor(owningLegalIdentity: CordaX500Name = CordaX500Name("Test Company Inc.", "London", "GB")) = Actor(Actor.Id("Only For Testing"), AuthServiceId("TEST"), owningLegalIdentity)
+fun testActor(owningLegalIdentity: CordaX500Name = CordaX500Name("Test Company Inc.", "London", "GB")) = Actor.create(Actor.Id("Only For Testing"), AuthServiceId("TEST"), owningLegalIdentity)
 
 /** Creates a new [InvocationContext] for use in testing with the given [owningLegalIdentity]. */
 fun testContext(owningLegalIdentity: CordaX500Name = CordaX500Name("Test Company Inc.", "London", "GB")) = InvocationContext.rpc(testActor(owningLegalIdentity))
